@@ -452,8 +452,8 @@ func TestFloat64s_ToStrings(t *testing.T) {
 
 func TestFloat64s_Append(t *testing.T) {
 	assert.Equal(t,
-		Float64s{}.Append(),
-		Float64s{},
+		len(Float64s{}.Append()),
+		0,
 	)
 
 	assert.Equal(t,
@@ -965,40 +965,139 @@ func TestFloat64s_Diff(t *testing.T) {
 	}
 }
 
-var float64sPopTest = []struct {
+var float64sSequenceAndSequenceUsingTests = []struct {
 	ss       Float64s
-	newSS    Float64s
-	popValue float64
+	params   []int
+	expected Float64s
 }{
+	// n
 	{
 		nil,
 		nil,
-		0,
+		nil,
 	},
 	{
-		Float64s{1.0, 2.0},
-		Float64s{1.0},
-		2.0,
+		nil,
+		[]int{-1},
+		nil,
+	},
+	{
+		nil,
+		[]int{0},
+		nil,
+	},
+	{
+		nil,
+		[]int{3},
+		Float64s{0, 1, 2},
 	},
 	{
 		Float64s{},
+		[]int{3},
+		Float64s{0, 1, 2},
+	},
+	// range
+	{
 		nil,
-		0,
+		[]int{2, 2},
+		nil,
 	},
 	{
-		Float64s{2.0, 3.0, 4.0, 5.0, 6.0, 7.0},
-		Float64s{2.0, 3.0, 4.0, 5.0, 6.0},
-		7.0,
+		Float64s{},
+		[]int{3, 2},
+		nil,
+	},
+	{
+		nil,
+		[]int{0, 3},
+		Float64s{0, 1, 2},
+	},
+	{
+		Float64s{},
+		[]int{3, 6},
+		Float64s{3, 4, 5},
+	},
+	{
+		Float64s{},
+		[]int{-5, 0},
+		Float64s{-5, -4, -3, -2, -1},
+	},
+	{
+		Float64s{},
+		[]int{-5, -10},
+		nil,
+	},
+	// range with step
+	{
+		nil,
+		[]int{3, 3, 1},
+		nil,
+	},
+	{
+		Float64s{},
+		[]int{3, 6, 2},
+		Float64s{3, 5},
+	},
+	{
+		Float64s{},
+		[]int{3, 7, 2},
+		Float64s{3, 5},
+	},
+	{
+		Float64s{},
+		[]int{-10, -6, 1},
+		Float64s{-10, -9, -8, -7},
+	},
+	{
+		Float64s{},
+		[]int{-6, -10, -1},
+		Float64s{-6, -7, -8, -9},
+	},
+	{
+		Float64s{},
+		[]int{-6, -10, 1},
+		nil,
 	},
 }
 
-func TestFloats64s_Pop(t *testing.T) {
-	for _, test := range float64sPopTest {
+func TestFloat64s_Sequence(t *testing.T) {
+	for _, test := range float64sSequenceAndSequenceUsingTests {
 		t.Run("", func(t *testing.T) {
 			defer assertImmutableFloat64s(t, &test.ss)()
-			ss, popValue := test.ss.Pop()
-			assert.Equal(t, test.newSS, ss)
-			assert.Equal(t, test.popValue, popValue)
+			assert.Equal(t, test.expected, test.ss.Sequence(test.params...))
 		})
 	}
+}
+
+func TestFloat64s_SequenceUsing(t *testing.T) {
+	for _, test := range float64sSequenceAndSequenceUsingTests {
+		t.Run("", func(t *testing.T) {
+			defer assertImmutableFloat64s(t, &test.ss)()
+			assert.Equal(t, test.expected, test.ss.SequenceUsing(func(i int) float64 { return float64(i) }, test.params...))
+		})
+	}
+}
+
+func TestFloat64s_Strings(t *testing.T) {
+	assert.Equal(t, Strings(nil), Float64s{}.Strings())
+
+	assert.Equal(t,
+		Strings{"92.384", "823.324", "453"},
+		Float64s{92.384, 823.324, 453}.Strings())
+}
+
+func TestFloat64s_Ints(t *testing.T) {
+	assert.Equal(t, Ints(nil), Float64s{}.Ints())
+
+	assert.Equal(t,
+		Ints{92, 823, 453},
+		Float64s{92.384, 823.324, 453}.Ints())
+}
+
+func TestFloat64s_Float64s(t *testing.T) {
+	assert.Equal(t, Float64s(nil), Float64s{}.Float64s())
+
+	assert.Equal(t,
+		Float64s{92.384, 823.324, 453},
+		Float64s{92.384, 823.324, 453}.Float64s())
 }

@@ -3,6 +3,7 @@ package pie
 import (
 	"fmt"
 	"math/rand"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -952,40 +953,145 @@ func TestStrings_Diff(t *testing.T) {
 	}
 }
 
-var stringsPopTest = []struct {
+// Make sure that Append never alters the receiver, or other
+// slices sharing the same memory, unlike the built-in append.
+func TestAppendNonDestructive(t *testing.T) {
+	ab := Strings{"A", "B"}
+	if x, expected := ab.Join(""), "AB"; x != expected {
+		t.Errorf("Expected %q, got %q", expected, x)
+	}
+
+	abc := ab.Append("C")
+	aby := ab.Append("Y")
+	if x, expected := abc.Join(""), "ABC"; x != expected {
+		t.Errorf("Expected %q, got %q", expected, x)
+	}
+	if x, expected := aby.Join(""), "ABY"; x != expected {
+		t.Errorf("Expected %q, got %q", expected, x)
+	}
+
+	abcd := abc.Append("D")
+	abcz := abc.Append("Z")
+	if x, expected := abcd.Join(""), "ABCD"; x != expected {
+		t.Errorf("Expected %q, got %q", expected, x)
+	}
+	if x, expected := abcz.Join(""), "ABCZ"; x != expected {
+		t.Errorf("Expected %q, got %q", expected, x)
+	}
+}
+
+func TestStrings_Strings(t *testing.T) {
+	assert.Equal(t, Strings(nil), Strings{}.Strings())
+
+	assert.Equal(t,
+		Strings{"foo", "bar", "BAZ"},
+		Strings{"foo", "bar", "BAZ"}.Strings())
+}
+
+func TestStrings_Ints(t *testing.T) {
+	assert.Equal(t, Ints(nil), Strings{}.Ints())
+
+	assert.Equal(t,
+		Ints{92, 0, 453},
+		Strings{"92.384", "foo", "453"}.Ints())
+}
+
+func TestStrings_Float64s(t *testing.T) {
+	assert.Equal(t, Float64s(nil), Strings{}.Float64s())
+
+	assert.Equal(t,
+		Float64s{92.384, 0, 453},
+		Strings{"92.384", "foo", "453"}.Float64s())
+}
+
+var stringsSequenceTests = []struct {
 	ss       Strings
-	newSS    Strings
-	popValue string
+	creator  func(int) string
+	params   []int
+	expected Strings
 }{
+	// n
 	{
 		nil,
 		nil,
-		"",
-	},
-	{
-		Strings{"foo", "bar"},
-		Strings{"foo"},
-		"bar",
-	},
-	{
-		Strings{},
 		nil,
-		"",
+		nil,
 	},
 	{
-		Strings{"foo", "bar", "text", "tick", "took", "best"},
-		Strings{"foo", "bar", "text", "tick", "took"},
-		"best",
+		nil,
+		nil,
+		[]int{0},
+		nil,
+	},
+	{
+		nil,
+		nil,
+		[]int{-1},
+		nil,
+	},
+	{
+		nil,
+		func(i int) string { return "p_" + strconv.Itoa(i) },
+		[]int{3},
+		Strings{"p_0", "p_1", "p_2"},
+	},
+	// range
+	{
+		nil,
+		func(i int) string { return "p_" + strconv.Itoa(i) },
+		[]int{6, 6},
+		nil,
+	},
+	{
+		nil,
+		func(i int) string { return "p_" + strconv.Itoa(i) },
+		[]int{8, 6},
+		nil,
+	},
+	{
+		nil,
+		func(i int) string { return "p_" + strconv.Itoa(i) },
+		[]int{3, 6},
+		Strings{"p_3", "p_4", "p_5"},
+	},
+	{
+		nil,
+		func(i int) string { return "p_" + strconv.Itoa(i) },
+		[]int{-6, -3},
+		Strings{"p_-6", "p_-5", "p_-4"},
+	},
+	{
+		nil,
+		func(i int) string { return "p_" + strconv.Itoa(i) },
+		[]int{-3, -6},
+		nil,
+	},
+	// range with step
+	{
+		nil,
+		func(i int) string { return "p_" + strconv.Itoa(i) },
+		[]int{3, 7, 2},
+		Strings{"p_3", "p_5"},
+	},
+	{
+		nil,
+		func(i int) string { return "p_" + strconv.Itoa(i) },
+		[]int{-3, -6, -2},
+		Strings{"p_-3", "p_-5"},
+	},
+	{
+		nil,
+		func(i int) string { return "p_" + strconv.Itoa(i) },
+		[]int{3, 7, 10},
+		nil,
 	},
 }
 
-func TestStrings_Pop(t *testing.T) {
-	for _, test := range stringsPopTest {
+func TestStrings_SequenceUsing(t *testing.T) {
+	for _, test := range stringsSequenceTests {
 		t.Run("", func(t *testing.T) {
 			defer assertImmutableStrings(t, &test.ss)()
-			ss, popValue := test.ss.Pop()
-			assert.Equal(t, test.newSS, ss)
-			assert.Equal(t, test.popValue, popValue)
+			assert.Equal(t, test.expected, test.ss.SequenceUsing(test.creator, test.params...))
 		})
 	}
 }

@@ -3,6 +3,7 @@ package pie
 import (
 	"fmt"
 	"math/rand"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -399,8 +400,8 @@ func TestCars_ToStrings(t *testing.T) {
 
 func TestCars_Append(t *testing.T) {
 	assert.Equal(t,
-		cars{}.Append(),
-		cars{},
+		len(cars{}.Append()),
+		0,
 	)
 
 	assert.Equal(t,
@@ -798,40 +799,118 @@ func TestCars_Diff(t *testing.T) {
 	}
 }
 
-var carsPopTests = []struct {
+func TestCars_Strings(t *testing.T) {
+	assert.Equal(t, Strings(nil), cars{}.Strings())
+
+	assert.Equal(t,
+		Strings{"{a green}", "{bar yellow}", "{Baz black}"},
+		cars{car{"a", "green"}, car{"bar", "yellow"}, car{"Baz", "black"}}.Strings())
+}
+
+func TestCars_Ints(t *testing.T) {
+	assert.Equal(t, Ints(nil), cars{}.Ints())
+
+	assert.Equal(t,
+		Ints{0, 0, 0},
+		cars{car{"a", "green"}, car{"bar", "yellow"}, car{"Baz", "black"}}.Ints())
+}
+
+func TestCars_Float64s(t *testing.T) {
+	assert.Equal(t, Float64s(nil), cars{}.Float64s())
+
+	assert.Equal(t,
+		Float64s{0, 0, 0},
+		cars{car{"a", "green"}, car{"bar", "yellow"}, car{"Baz", "black"}}.Float64s())
+}
+
+var carsSequenceTests = []struct {
 	ss       cars
-	newSS    cars
-	popValue car
+	creator  func(int) car
+	params   []int
+	expected cars
 }{
+	// n
 	{
-		cars{car{"a", "green"}, car{"b", "blue"}, car{"c", "gray"}},
-		cars{car{"a", "green"}, car{"b", "blue"}},
-		car{"c", "gray"},
+		nil,
+		nil,
+		nil,
+		nil,
 	},
 	{
 		nil,
 		nil,
-		car{},
-	},
-	{
-		cars{},
+		[]int{0},
 		nil,
-		car{},
 	},
 	{
-		cars{car{"a", "green"}, car{"b", "blue"}},
-		cars{car{"a", "green"}},
-		car{"b", "blue"},
+		nil,
+		nil,
+		[]int{-1},
+		nil,
+	},
+	{
+		nil,
+		func(i int) car { return car{Name: strconv.Itoa(i)} },
+		[]int{3},
+		cars{{Name: "0"}, {Name: "1"}, {Name: "2"}},
+	},
+	// range
+	{
+		nil,
+		func(i int) car { return car{Name: strconv.Itoa(i)} },
+		[]int{6, 6},
+		nil,
+	},
+	{
+		nil,
+		func(i int) car { return car{Name: strconv.Itoa(i)} },
+		[]int{8, 6},
+		nil,
+	},
+	{
+		nil,
+		func(i int) car { return car{Name: strconv.Itoa(i)} },
+		[]int{3, 6},
+		cars{{Name: "3"}, {Name: "4"}, {Name: "5"}},
+	},
+	{
+		nil,
+		func(i int) car { return car{Name: strconv.Itoa(i)} },
+		[]int{-6, -3},
+		cars{{Name: "-6"}, {Name: "-5"}, {Name: "-4"}},
+	},
+	{
+		nil,
+		func(i int) car { return car{Name: strconv.Itoa(i)} },
+		[]int{-3, -6},
+		nil,
+	},
+	// range with step
+	{
+		nil,
+		func(i int) car { return car{Name: strconv.Itoa(i)} },
+		[]int{3, 7, 2},
+		cars{{Name: "3"}, {Name: "5"}},
+	},
+	{
+		nil,
+		func(i int) car { return car{Name: strconv.Itoa(i)} },
+		[]int{-3, -6, -2},
+		cars{{Name: "-3"}, {Name: "-5"}},
+	},
+	{
+		nil,
+		func(i int) car { return car{Name: strconv.Itoa(i)} },
+		[]int{3, 7, 10},
+		nil,
 	},
 }
 
-func TestCars_Pop(t *testing.T) {
-	for _, test := range carsPopTests {
+func TestCars_SequenceUsing(t *testing.T) {
+	for _, test := range carsSequenceTests {
 		t.Run("", func(t *testing.T) {
 			defer assertImmutableCars(t, &test.ss)()
-			ss, popValue := test.ss.Pop()
-			assert.Equal(t, test.newSS, ss)
-			assert.Equal(t, test.popValue, popValue)
+			assert.Equal(t, test.expected, test.ss.SequenceUsing(test.creator, test.params...))
 		})
 	}
 }

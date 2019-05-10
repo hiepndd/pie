@@ -1,5 +1,7 @@
 package functions
 
+import "fmt"
+
 const (
 	ForNumbers = 1 << iota
 	ForStrings
@@ -34,7 +36,9 @@ var Functions = []struct {
 	{"FilterNot", "filter_not.go", ForAll},
 	{"First", "first.go", ForAll},
 	{"FirstOr", "first_or.go", ForAll},
+	{"Float64s", "float64s.go", ForAll},
 	{"Intersect", "intersect.go", ForNumbersAndStrings},
+	{"Ints", "ints.go", ForAll},
 	{"Join", "join.go", ForStrings},
 	{"JSONString", "json_string.go", ForAll},
 	{"Keys", "keys.go", ForMaps},
@@ -51,11 +55,14 @@ var Functions = []struct {
 	{"Reduce", "reduce.go", ForNumbersAndStrings},
 	{"Reverse", "reverse.go", ForAll},
 	{"Send", "send.go", ForAll},
-	{"Sort", "sort.go", ForNumbersAndStrings},
-	{"SortUsing", "sort_using.go", ForStrings | ForStructs},
-	{"SortStableUsing", "sort_stable_using.go", ForStrings | ForStructs},
-	{"Sum", "sum.go", ForNumbers},
+	{"Sequence", "sequence.go", ForNumbers},
+	{"SequenceUsing", "sequence_using.go", ForAll},
 	{"Shuffle", "shuffle.go", ForAll},
+	{"Sort", "sort.go", ForNumbersAndStrings},
+	{"SortStableUsing", "sort_stable_using.go", ForStrings | ForStructs},
+	{"SortUsing", "sort_using.go", ForStrings | ForStructs},
+	{"Strings", "strings.go", ForAll},
+	{"Sum", "sum.go", ForNumbers},
 	{"Top", "top.go", ForAll},
 	{"ToStrings", "to_strings.go", ForAll},
 	{"Unique", "unique.go", ForNumbersAndStrings},
@@ -71,3 +78,11 @@ type KeySliceType []KeyType
 type MapType map[KeyType]ElementType
 
 var ElementZeroValue ElementType
+
+func (a ElementType) Equals(b ElementType) bool {
+	return a == b
+}
+
+func (a ElementType) String() string {
+	return fmt.Sprintf("%f", a)
+}

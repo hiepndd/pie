@@ -3,6 +3,7 @@ package pie
 import (
 	"fmt"
 	"math/rand"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -29,7 +30,7 @@ var carPointersContainsTests = []struct {
 	{carPointers{carPointerA, carPointerB, carPointerC}, carPointerA, true},
 	{carPointers{carPointerA, carPointerB, carPointerC}, carPointerB, true},
 	{carPointers{carPointerA, carPointerB, carPointerC}, carPointerC, true},
-	{carPointers{carPointerA, carPointerB, carPointerC}, &car{"a", "green"}, false},
+	{carPointers{carPointerA, carPointerB, carPointerC}, &car{"a", "green"}, true},
 	{carPointers{carPointerA, carPointerB, carPointerC}, &car{"A", ""}, false},
 	{carPointers{carPointerA, carPointerB, carPointerC}, &car{}, false},
 	{carPointers{carPointerA, carPointerB, carPointerC}, &car{"d", ""}, false},
@@ -412,8 +413,8 @@ func TestCarPointers_ToStrings(t *testing.T) {
 
 func TestCarPointers_Append(t *testing.T) {
 	assert.Equal(t,
-		(carPointers)(nil).Append(),
-		(carPointers)(nil),
+		len((carPointers)(nil).Append()),
+		0,
 	)
 
 	assert.Equal(t,
@@ -817,25 +818,124 @@ func TestCarPointers_Diff(t *testing.T) {
 	}
 }
 
-var carPointersPopTests = []struct {
-	ss       carPointers
-	newSS    carPointers
-	popValue *car
-}{
-	{carPointers{carPointerA, carPointerB, carPointerC}, carPointers{carPointerA, carPointerB}, carPointerC},
+func TestCarPointers_Strings(t *testing.T) {
+	assert.Equal(t, Strings(nil), carPointers(nil).Strings())
 
-	{nil, nil, carPointerEmpty},
+	assert.Equal(t, Strings(nil), carPointers{}.Strings())
 
-	{carPointers{carPointerA, carPointerB}, carPointers{carPointerA}, carPointerB},
+	assert.Equal(t,
+		Strings{"a is green", "b is blue", "c is gray"},
+		carPointers{carPointerA, carPointerB, carPointerC}.Strings())
 }
 
-func TestCarPointers_Pop(t *testing.T) {
-	for _, test := range carPointersPopTests {
+func TestCarPointers_Ints(t *testing.T) {
+	assert.Equal(t, Ints(nil), carPointers(nil).Ints())
+
+	assert.Equal(t, Ints(nil), carPointers{}.Ints())
+
+	assert.Equal(t,
+		Ints{0, 0, 0},
+		carPointers{carPointerA, carPointerB, carPointerC}.Ints())
+}
+
+func TestCarPointers_Float64s(t *testing.T) {
+	assert.Equal(t, Float64s(nil), carPointers(nil).Float64s())
+
+	assert.Equal(t, Float64s(nil), carPointers{}.Float64s())
+
+	assert.Equal(t,
+		Float64s{0, 0, 0},
+		carPointers{carPointerA, carPointerB, carPointerC}.Float64s())
+}
+
+var carPointersSequenceTests = []struct {
+	ss       carPointers
+	creator  func(int) *car
+	params   []int
+	expected carPointers
+}{
+	// n
+	{
+		nil,
+		nil,
+		nil,
+		nil,
+	},
+	{
+		nil,
+		nil,
+		[]int{0},
+		nil,
+	},
+	{
+		nil,
+		nil,
+		[]int{-1},
+		nil,
+	},
+	{
+		nil,
+		func(i int) *car { return &car{Name: strconv.Itoa(i)} },
+		[]int{3},
+		carPointers{{Name: "0"}, {Name: "1"}, {Name: "2"}},
+	},
+	// range
+	{
+		nil,
+		func(i int) *car { return &car{Name: strconv.Itoa(i)} },
+		[]int{6, 6},
+		nil,
+	},
+	{
+		nil,
+		func(i int) *car { return &car{Name: strconv.Itoa(i)} },
+		[]int{8, 6},
+		nil,
+	},
+	{
+		nil,
+		func(i int) *car { return &car{Name: strconv.Itoa(i)} },
+		[]int{3, 6},
+		carPointers{{Name: "3"}, {Name: "4"}, {Name: "5"}},
+	},
+	{
+		nil,
+		func(i int) *car { return &car{Name: strconv.Itoa(i)} },
+		[]int{-6, -3},
+		carPointers{{Name: "-6"}, {Name: "-5"}, {Name: "-4"}},
+	},
+	{
+		nil,
+		func(i int) *car { return &car{Name: strconv.Itoa(i)} },
+		[]int{-3, -6},
+		nil,
+	},
+	// range with step
+	{
+		nil,
+		func(i int) *car { return &car{Name: strconv.Itoa(i)} },
+		[]int{3, 7, 2},
+		carPointers{{Name: "3"}, {Name: "5"}},
+	},
+	{
+		nil,
+		func(i int) *car { return &car{Name: strconv.Itoa(i)} },
+		[]int{-3, -6, -2},
+		carPointers{{Name: "-3"}, {Name: "-5"}},
+	},
+	{
+		nil,
+		func(i int) *car { return &car{Name: strconv.Itoa(i)} },
+		[]int{3, 7, 10},
+		nil,
+	},
+}
+
+func TestCarPointers_SequenceUsing(t *testing.T) {
+	for _, test := range carPointersSequenceTests {
 		t.Run("", func(t *testing.T) {
 			defer assertImmutableCarPointers(t, &test.ss)()
-			ss, popValue := test.ss.Pop()
-			assert.Equal(t, test.newSS, ss)
-			assert.Equal(t, test.popValue, popValue)
+			assert.Equal(t, test.expected, test.ss.SequenceUsing(test.creator, test.params...))
 		})
 	}
 }

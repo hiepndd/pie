@@ -51,13 +51,16 @@ func (ss SliceType) Any(fn func(value ElementType) bool) bool {
 `,
 	"Append": `package functions
 
-// Append will return a new slice with the elements appended to the end. It is a
-// wrapper for the internal append(). It is offered as a function so that it can
-// more easily chained.
+// Append will return a new slice with the elements appended to the end.
 //
 // It is acceptable to provide zero arguments.
 func (ss SliceType) Append(elements ...ElementType) SliceType {
-	return append(ss, elements...)
+	// Copy ss, to make sure no memory is overlapping between input and
+	// output. See issue #97.
+	result := append(SliceType{}, ss...)
+
+	result = append(result, elements...)
+	return result
 }
 `,
 	"AreSorted": `package functions
@@ -119,7 +122,7 @@ func (ss SliceType) Bottom(n int) (top SliceType) {
 // When using slices of pointers it will only compare by address, not value.
 func (ss SliceType) Contains(lookingFor ElementType) bool {
 	for _, s := range ss {
-		if s == lookingFor {
+		if lookingFor.Equals(s) {
 			return true
 		}
 	}
@@ -149,7 +152,7 @@ func (ss SliceType) Diff(against SliceType) (added, removed SliceType) {
 			found := false
 
 			for i, element := range ss2 {
-				if element == s {
+				if s.Equals(element) {
 					ss2 = append(ss2[:i], ss2[i+1:]...)
 					found = true
 				}
@@ -259,6 +262,31 @@ func (ss SliceType) FirstOr(defaultValue ElementType) ElementType {
 	return ss[0]
 }
 `,
+	"Float64s": `package functions
+
+import (
+	"github.com/elliotchance/pie/pie"
+	"strconv"
+)
+
+// Float64s transforms each element to a float64.
+func (ss SliceType) Float64s() pie.Float64s {
+	l := len(ss)
+
+	// Avoid the allocation.
+	if l == 0 {
+		return nil
+	}
+
+	result := make(pie.Float64s, l)
+	for i := 0; i < l; i++ {
+		mightBeString := ss[i]
+		result[i], _ = strconv.ParseFloat(mightBeString.String(), 64)
+	}
+
+	return result
+}
+`,
 	"Intersect": `package functions
 
 // Intersect returns items that exist in all lists.
@@ -294,6 +322,32 @@ func (ss SliceType) Intersect(slices ...SliceType) (ss2 SliceType) {
 	}
 
 	return
+}
+`,
+	"Ints": `package functions
+
+import (
+	"github.com/elliotchance/pie/pie"
+	"strconv"
+)
+
+// Ints transforms each element to an integer.
+func (ss SliceType) Ints() pie.Ints {
+	l := len(ss)
+
+	// Avoid the allocation.
+	if l == 0 {
+		return nil
+	}
+
+	result := make(pie.Ints, l)
+	for i := 0; i < l; i++ {
+		mightBeString := ss[i]
+		f, _ := strconv.ParseFloat(mightBeString.String(), 64)
+		result[i] = int(f)
+	}
+
+	return result
 }
 `,
 	"JSONString": `package functions
@@ -564,6 +618,75 @@ func (ss SliceType) Send(ctx context.Context, ch chan<- ElementType) SliceType {
 	return ss
 }
 `,
+	"Sequence": `package functions
+
+// Sequence generates all numbers in range or returns nil if params invalid
+//
+// There are 3 variations to generate:
+// 		1. [0, n).
+//		2. [min, max).
+//		3. [min, max) with step.
+//
+// if len(params) == 1 considered that will be returned slice between 0 and n,
+// where n is the first param, [0, n).
+// if len(params) == 2 considered that will be returned slice between min and max,
+// where min is the first param, max is the second, [min, max).
+// if len(params) > 2 considered that will be returned slice between min and max with step,
+// where min is the first param, max is the second, step is the third one, [min, max) with step,
+// others params will be ignored
+func (ss SliceType) Sequence(params ...int) SliceType {
+	var creator = func(i int) ElementType {
+		return ElementType(i)
+	}
+
+	return ss.SequenceUsing(creator, params...)
+}
+`,
+	"SequenceUsing": `package functions
+
+import "github.com/elliotchance/pie/pie/util"
+
+// SequenceUsing generates slice in range using creator function
+//
+// There are 3 variations to generate:
+// 		1. [0, n).
+//		2. [min, max).
+//		3. [min, max) with step.
+//
+// if len(params) == 1 considered that will be returned slice between 0 and n,
+// where n is the first param, [0, n).
+// if len(params) == 2 considered that will be returned slice between min and max,
+// where min is the first param, max is the second, [min, max).
+// if len(params) > 2 considered that will be returned slice between min and max with step,
+// where min is the first param, max is the second, step is the third one, [min, max) with step,
+// others params will be ignored
+func (ss SliceType) SequenceUsing(creator func(int) ElementType, params ...int) SliceType {
+	var seq = func(min, max, step int) (seq SliceType) {
+		lenght := int(util.Round(float64(max-min) / float64(step)))
+		if lenght < 1 {
+			return
+		}
+
+		seq = make(SliceType, lenght)
+		for i := 0; i < lenght; min += step {
+			seq[i] = creator(min)
+			i++
+		}
+
+		return seq
+	}
+
+	if len(params) > 2 {
+		return seq(params[0], params[1], params[2])
+	} else if len(params) == 2 {
+		return seq(params[0], params[1], 1)
+	} else if len(params) == 1 {
+		return seq(0, params[0], 1)
+	} else {
+		return nil
+	}
+}
+`,
 	"Shuffle": `package functions
 
 import (
@@ -667,6 +790,36 @@ func (ss SliceType) SortUsing(less func(a, b ElementType) bool) SliceType {
 	})
 
 	return sorted
+}
+`,
+	"Strings": `package functions
+
+import (
+	"github.com/elliotchance/pie/pie"
+)
+
+// Strings transforms each element to a string.
+//
+// If the element type implements fmt.Stringer it will be used. Otherwise it
+// will fallback to the result of:
+//
+//   fmt.Sprintf("%v")
+//
+func (ss SliceType) Strings() pie.Strings {
+	l := len(ss)
+
+	// Avoid the allocation.
+	if l == 0 {
+		return nil
+	}
+
+	result := make(pie.Strings, l)
+	for i := 0; i < l; i++ {
+		mightBeString := ss[i]
+		result[i] = mightBeString.String()
+	}
+
+	return result
 }
 `,
 	"Sum": `package functions

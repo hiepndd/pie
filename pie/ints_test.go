@@ -437,8 +437,8 @@ func TestInts_ToStrings(t *testing.T) {
 
 func TestInts_Append(t *testing.T) {
 	assert.Equal(t,
-		Ints{}.Append(),
-		Ints{},
+		len(Ints{}.Append()),
+		0,
 	)
 
 	assert.Equal(t,
@@ -930,40 +930,139 @@ func TestInts_Diff(t *testing.T) {
 	}
 }
 
-var intsPopTest = []struct {
+var intsSequenceAndSequenceUsingTests = []struct {
 	ss       Ints
-	newSS    Ints
-	popValue int
+	params   []int
+	expected Ints
 }{
+	// n
 	{
 		nil,
 		nil,
-		0,
+		nil,
 	},
 	{
-		Ints{1, 2},
-		Ints{1},
-		2,
+		nil,
+		[]int{-1},
+		nil,
+	},
+	{
+		nil,
+		[]int{0},
+		nil,
+	},
+	{
+		nil,
+		[]int{3},
+		Ints{0, 1, 2},
 	},
 	{
 		Ints{},
+		[]int{3},
+		Ints{0, 1, 2},
+	},
+	// range
+	{
 		nil,
-		0,
+		[]int{2, 2},
+		nil,
 	},
 	{
-		Ints{2, 3, 4, 5, 6, 7},
-		Ints{2, 3, 4, 5, 6},
-		7,
+		Ints{},
+		[]int{3, 2},
+		nil,
+	},
+	{
+		nil,
+		[]int{0, 3},
+		Ints{0, 1, 2},
+	},
+	{
+		Ints{},
+		[]int{3, 6},
+		Ints{3, 4, 5},
+	},
+	{
+		Ints{},
+		[]int{-5, 0},
+		Ints{-5, -4, -3, -2, -1},
+	},
+	{
+		Ints{},
+		[]int{-5, -10},
+		nil,
+	},
+	// range with step
+	{
+		nil,
+		[]int{3, 3, 1},
+		nil,
+	},
+	{
+		Ints{},
+		[]int{3, 6, 2},
+		Ints{3, 5},
+	},
+	{
+		Ints{},
+		[]int{3, 7, 2},
+		Ints{3, 5},
+	},
+	{
+		Ints{},
+		[]int{-10, -6, 1},
+		Ints{-10, -9, -8, -7},
+	},
+	{
+		Ints{},
+		[]int{-6, -10, -1},
+		Ints{-6, -7, -8, -9},
+	},
+	{
+		Ints{},
+		[]int{-6, -10, 1},
+		nil,
 	},
 }
 
-func TestInts_Pop(t *testing.T) {
-	for _, test := range intsPopTest {
+func TestInts_Sequence(t *testing.T) {
+	for _, test := range intsSequenceAndSequenceUsingTests {
 		t.Run("", func(t *testing.T) {
 			defer assertImmutableInts(t, &test.ss)()
-			ss, popValue := test.ss.Pop()
-			assert.Equal(t, test.newSS, ss)
-			assert.Equal(t, test.popValue, popValue)
+			assert.Equal(t, test.expected, test.ss.Sequence(test.params...))
 		})
 	}
+}
+
+func TestInts_SequenceUsing(t *testing.T) {
+	for _, test := range intsSequenceAndSequenceUsingTests {
+		t.Run("", func(t *testing.T) {
+			defer assertImmutableInts(t, &test.ss)()
+			assert.Equal(t, test.expected, test.ss.SequenceUsing(func(i int) int { return i }, test.params...))
+		})
+	}
+}
+
+func TestInts_Strings(t *testing.T) {
+	assert.Equal(t, Strings(nil), Ints{}.Strings())
+
+	assert.Equal(t,
+		Strings{"92", "823", "453"},
+		Ints{92, 823, 453}.Strings())
+}
+
+func TestInts_Ints(t *testing.T) {
+	assert.Equal(t, Ints(nil), Ints{}.Ints())
+
+	assert.Equal(t,
+		Ints{92, 823, 453},
+		Ints{92, 823, 453}.Ints())
+}
+
+func TestInts_Float64s(t *testing.T) {
+	assert.Equal(t, Float64s(nil), Ints{}.Float64s())
+
+	assert.Equal(t,
+		Float64s{92, 823, 453},
+		Ints{92, 823, 453}.Float64s())
 }

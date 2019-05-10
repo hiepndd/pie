@@ -3,8 +3,10 @@ package pie
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"math/rand"
 	"sort"
+	"strconv"
 
 	"github.com/elliotchance/pie/pie/util"
 )
@@ -37,13 +39,16 @@ func (ss Strings) Any(fn func(value string) bool) bool {
 	return false
 }
 
-// Append will return a new slice with the elements appended to the end. It is a
-// wrapper for the internal append(). It is offered as a function so that it can
-// more easily chained.
+// Append will return a new slice with the elements appended to the end.
 //
 // It is acceptable to provide zero arguments.
 func (ss Strings) Append(elements ...string) Strings {
-	return append(ss, elements...)
+	// Copy ss, to make sure no memory is overlapping between input and
+	// output. See issue #97.
+	result := append(Strings{}, ss...)
+
+	result = append(result, elements...)
+	return result
 }
 
 // AreSorted will return true if the slice is already sorted. It is a wrapper
@@ -81,7 +86,7 @@ func (ss Strings) Bottom(n int) (top Strings) {
 // When using slices of pointers it will only compare by address, not value.
 func (ss Strings) Contains(lookingFor string) bool {
 	for _, s := range ss {
-		if s == lookingFor {
+		if lookingFor == s {
 			return true
 		}
 	}
@@ -109,7 +114,7 @@ func (ss Strings) Diff(against Strings) (added, removed Strings) {
 			found := false
 
 			for i, element := range ss2 {
-				if element == s {
+				if s == element {
 					ss2 = append(ss2[:i], ss2[i+1:]...)
 					found = true
 				}
@@ -207,6 +212,24 @@ func (ss Strings) FirstOr(defaultValue string) string {
 	return ss[0]
 }
 
+// Float64s transforms each element to a float64.
+func (ss Strings) Float64s() Float64s {
+	l := len(ss)
+
+	// Avoid the allocation.
+	if l == 0 {
+		return nil
+	}
+
+	result := make(Float64s, l)
+	for i := 0; i < l; i++ {
+		mightBeString := ss[i]
+		result[i], _ = strconv.ParseFloat(fmt.Sprintf("%v", mightBeString), 64)
+	}
+
+	return result
+}
+
 // Intersect returns items that exist in all lists.
 //
 // It returns slice without any duplicates.
@@ -240,6 +263,25 @@ func (ss Strings) Intersect(slices ...Strings) (ss2 Strings) {
 	}
 
 	return
+}
+
+// Ints transforms each element to an integer.
+func (ss Strings) Ints() Ints {
+	l := len(ss)
+
+	// Avoid the allocation.
+	if l == 0 {
+		return nil
+	}
+
+	result := make(Ints, l)
+	for i := 0; i < l; i++ {
+		mightBeString := ss[i]
+		f, _ := strconv.ParseFloat(fmt.Sprintf("%v", mightBeString), 64)
+		result[i] = int(f)
+	}
+
+	return result
 }
 
 // Join returns a string from joining each of the elements.
@@ -421,60 +463,45 @@ func (ss Strings) Send(ctx context.Context, ch chan<- string) Strings {
 	return ss
 }
 
-// Sort works similar to sort.Strings(). However, unlike sort.Strings the
-// slice returned will be reallocated as to not modify the input slice.
+// SequenceUsing generates slice in range using creator function
 //
-// See Reverse() and AreSorted().
-func (ss Strings) Sort() Strings {
-	// Avoid the allocation. If there is one element or less it is already
-	// sorted.
-	if len(ss) < 2 {
-		return ss
+// There are 3 variations to generate:
+// 		1. [0, n).
+//		2. [min, max).
+//		3. [min, max) with step.
+//
+// if len(params) == 1 considered that will be returned slice between 0 and n,
+// where n is the first param, [0, n).
+// if len(params) == 2 considered that will be returned slice between min and max,
+// where min is the first param, max is the second, [min, max).
+// if len(params) > 2 considered that will be returned slice between min and max with step,
+// where min is the first param, max is the second, step is the third one, [min, max) with step,
+// others params will be ignored
+func (ss Strings) SequenceUsing(creator func(int) string, params ...int) Strings {
+	var seq = func(min, max, step int) (seq Strings) {
+		lenght := int(util.Round(float64(max-min) / float64(step)))
+		if lenght < 1 {
+			return
+		}
+
+		seq = make(Strings, lenght)
+		for i := 0; i < lenght; min += step {
+			seq[i] = creator(min)
+			i++
+		}
+
+		return seq
 	}
 
-	sorted := make(Strings, len(ss))
-	copy(sorted, ss)
-	sort.Slice(sorted, func(i, j int) bool {
-		return sorted[i] < sorted[j]
-	})
-
-	return sorted
-}
-
-// SortUsing works similar to sort.Slice. However, unlike sort.Slice the
-// slice returned will be reallocated as to not modify the input slice.
-func (ss Strings) SortUsing(less func(a, b string) bool) Strings {
-	// Avoid the allocation. If there is one element or less it is already
-	// sorted.
-	if len(ss) < 2 {
-		return ss
+	if len(params) > 2 {
+		return seq(params[0], params[1], params[2])
+	} else if len(params) == 2 {
+		return seq(params[0], params[1], 1)
+	} else if len(params) == 1 {
+		return seq(0, params[0], 1)
+	} else {
+		return nil
 	}
-
-	sorted := make(Strings, len(ss))
-	copy(sorted, ss)
-	sort.Slice(sorted, func(i, j int) bool {
-		return less(sorted[i], sorted[j])
-	})
-
-	return sorted
-}
-
-// SortStableUsing works similar to sort.SliceStable. However, unlike sort.SliceStable the
-// slice returned will be reallocated as to not modify the input slice.
-func (ss Strings) SortStableUsing(less func(a, b string) bool) Strings {
-	// Avoid the allocation. If there is one element or less it is already
-	// sorted.
-	if len(ss) < 2 {
-		return ss
-	}
-
-	sorted := make(Strings, len(ss))
-	copy(sorted, ss)
-	sort.SliceStable(sorted, func(i, j int) bool {
-		return less(sorted[i], sorted[j])
-	})
-
-	return sorted
 }
 
 // Shuffle returns shuffled slice by your rand.Source
@@ -499,6 +526,86 @@ func (ss Strings) Shuffle(source rand.Source) Strings {
 	})
 
 	return shuffled
+}
+
+// Sort works similar to sort.Strings(). However, unlike sort.Strings the
+// slice returned will be reallocated as to not modify the input slice.
+//
+// See Reverse() and AreSorted().
+func (ss Strings) Sort() Strings {
+	// Avoid the allocation. If there is one element or less it is already
+	// sorted.
+	if len(ss) < 2 {
+		return ss
+	}
+
+	sorted := make(Strings, len(ss))
+	copy(sorted, ss)
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i] < sorted[j]
+	})
+
+	return sorted
+}
+
+// SortStableUsing works similar to sort.SliceStable. However, unlike sort.SliceStable the
+// slice returned will be reallocated as to not modify the input slice.
+func (ss Strings) SortStableUsing(less func(a, b string) bool) Strings {
+	// Avoid the allocation. If there is one element or less it is already
+	// sorted.
+	if len(ss) < 2 {
+		return ss
+	}
+
+	sorted := make(Strings, len(ss))
+	copy(sorted, ss)
+	sort.SliceStable(sorted, func(i, j int) bool {
+		return less(sorted[i], sorted[j])
+	})
+
+	return sorted
+}
+
+// SortUsing works similar to sort.Slice. However, unlike sort.Slice the
+// slice returned will be reallocated as to not modify the input slice.
+func (ss Strings) SortUsing(less func(a, b string) bool) Strings {
+	// Avoid the allocation. If there is one element or less it is already
+	// sorted.
+	if len(ss) < 2 {
+		return ss
+	}
+
+	sorted := make(Strings, len(ss))
+	copy(sorted, ss)
+	sort.Slice(sorted, func(i, j int) bool {
+		return less(sorted[i], sorted[j])
+	})
+
+	return sorted
+}
+
+// Strings transforms each element to a string.
+//
+// If the element type implements fmt.Stringer it will be used. Otherwise it
+// will fallback to the result of:
+//
+//   fmt.Sprintf("%v")
+//
+func (ss Strings) Strings() Strings {
+	l := len(ss)
+
+	// Avoid the allocation.
+	if l == 0 {
+		return nil
+	}
+
+	result := make(Strings, l)
+	for i := 0; i < l; i++ {
+		mightBeString := ss[i]
+		result[i] = fmt.Sprintf("%v", mightBeString)
+	}
+
+	return result
 }
 
 // Top will return n elements from head of the slice

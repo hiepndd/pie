@@ -3,9 +3,11 @@ package pie
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"math"
 	"math/rand"
 	"sort"
+	"strconv"
 
 	"github.com/elliotchance/pie/pie/util"
 )
@@ -47,13 +49,16 @@ func (ss Float64s) Any(fn func(value float64) bool) bool {
 	return false
 }
 
-// Append will return a new slice with the elements appended to the end. It is a
-// wrapper for the internal append(). It is offered as a function so that it can
-// more easily chained.
+// Append will return a new slice with the elements appended to the end.
 //
 // It is acceptable to provide zero arguments.
 func (ss Float64s) Append(elements ...float64) Float64s {
-	return append(ss, elements...)
+	// Copy ss, to make sure no memory is overlapping between input and
+	// output. See issue #97.
+	result := append(Float64s{}, ss...)
+
+	result = append(result, elements...)
+	return result
 }
 
 // AreSorted will return true if the slice is already sorted. It is a wrapper
@@ -101,7 +106,7 @@ func (ss Float64s) Bottom(n int) (top Float64s) {
 // When using slices of pointers it will only compare by address, not value.
 func (ss Float64s) Contains(lookingFor float64) bool {
 	for _, s := range ss {
-		if s == lookingFor {
+		if lookingFor == s {
 			return true
 		}
 	}
@@ -129,7 +134,7 @@ func (ss Float64s) Diff(against Float64s) (added, removed Float64s) {
 			found := false
 
 			for i, element := range ss2 {
-				if element == s {
+				if s == element {
 					ss2 = append(ss2[:i], ss2[i+1:]...)
 					found = true
 				}
@@ -227,6 +232,24 @@ func (ss Float64s) FirstOr(defaultValue float64) float64 {
 	return ss[0]
 }
 
+// Float64s transforms each element to a float64.
+func (ss Float64s) Float64s() Float64s {
+	l := len(ss)
+
+	// Avoid the allocation.
+	if l == 0 {
+		return nil
+	}
+
+	result := make(Float64s, l)
+	for i := 0; i < l; i++ {
+		mightBeString := ss[i]
+		result[i], _ = strconv.ParseFloat(fmt.Sprintf("%v", mightBeString), 64)
+	}
+
+	return result
+}
+
 // Intersect returns items that exist in all lists.
 //
 // It returns slice without any duplicates.
@@ -260,6 +283,25 @@ func (ss Float64s) Intersect(slices ...Float64s) (ss2 Float64s) {
 	}
 
 	return
+}
+
+// Ints transforms each element to an integer.
+func (ss Float64s) Ints() Ints {
+	l := len(ss)
+
+	// Avoid the allocation.
+	if l == 0 {
+		return nil
+	}
+
+	result := make(Ints, l)
+	for i := 0; i < l; i++ {
+		mightBeString := ss[i]
+		f, _ := strconv.ParseFloat(fmt.Sprintf("%v", mightBeString), 64)
+		result[i] = int(f)
+	}
+
+	return result
 }
 
 // JSONString returns the JSON encoded array as a string.
@@ -465,33 +507,67 @@ func (ss Float64s) Send(ctx context.Context, ch chan<- float64) Float64s {
 	return ss
 }
 
-// Sort works similar to sort.Float64s(). However, unlike sort.Float64s the
-// slice returned will be reallocated as to not modify the input slice.
+// Sequence generates all numbers in range or returns nil if params invalid
 //
-// See Reverse() and AreSorted().
-func (ss Float64s) Sort() Float64s {
-	// Avoid the allocation. If there is one element or less it is already
-	// sorted.
-	if len(ss) < 2 {
-		return ss
+// There are 3 variations to generate:
+// 		1. [0, n).
+//		2. [min, max).
+//		3. [min, max) with step.
+//
+// if len(params) == 1 considered that will be returned slice between 0 and n,
+// where n is the first param, [0, n).
+// if len(params) == 2 considered that will be returned slice between min and max,
+// where min is the first param, max is the second, [min, max).
+// if len(params) > 2 considered that will be returned slice between min and max with step,
+// where min is the first param, max is the second, step is the third one, [min, max) with step,
+// others params will be ignored
+func (ss Float64s) Sequence(params ...int) Float64s {
+	var creator = func(i int) float64 {
+		return float64(i)
 	}
 
-	sorted := make(Float64s, len(ss))
-	copy(sorted, ss)
-	sort.Slice(sorted, func(i, j int) bool {
-		return sorted[i] < sorted[j]
-	})
-
-	return sorted
+	return ss.SequenceUsing(creator, params...)
 }
 
-// Sum is the sum of all of the elements.
-func (ss Float64s) Sum() (sum float64) {
-	for _, s := range ss {
-		sum += s
+// SequenceUsing generates slice in range using creator function
+//
+// There are 3 variations to generate:
+// 		1. [0, n).
+//		2. [min, max).
+//		3. [min, max) with step.
+//
+// if len(params) == 1 considered that will be returned slice between 0 and n,
+// where n is the first param, [0, n).
+// if len(params) == 2 considered that will be returned slice between min and max,
+// where min is the first param, max is the second, [min, max).
+// if len(params) > 2 considered that will be returned slice between min and max with step,
+// where min is the first param, max is the second, step is the third one, [min, max) with step,
+// others params will be ignored
+func (ss Float64s) SequenceUsing(creator func(int) float64, params ...int) Float64s {
+	var seq = func(min, max, step int) (seq Float64s) {
+		lenght := int(util.Round(float64(max-min) / float64(step)))
+		if lenght < 1 {
+			return
+		}
+
+		seq = make(Float64s, lenght)
+		for i := 0; i < lenght; min += step {
+			seq[i] = creator(min)
+			i++
+		}
+
+		return seq
 	}
 
-	return
+	if len(params) > 2 {
+		return seq(params[0], params[1], params[2])
+	} else if len(params) == 2 {
+		return seq(params[0], params[1], 1)
+	} else if len(params) == 1 {
+		return seq(0, params[0], 1)
+	} else {
+		return nil
+	}
 }
 
 // Shuffle returns shuffled slice by your rand.Source
@@ -516,6 +592,59 @@ func (ss Float64s) Shuffle(source rand.Source) Float64s {
 	})
 
 	return shuffled
+}
+
+// Sort works similar to sort.Float64s(). However, unlike sort.Float64s the
+// slice returned will be reallocated as to not modify the input slice.
+//
+// See Reverse() and AreSorted().
+func (ss Float64s) Sort() Float64s {
+	// Avoid the allocation. If there is one element or less it is already
+	// sorted.
+	if len(ss) < 2 {
+		return ss
+	}
+
+	sorted := make(Float64s, len(ss))
+	copy(sorted, ss)
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i] < sorted[j]
+	})
+
+	return sorted
+}
+
+// Strings transforms each element to a string.
+//
+// If the element type implements fmt.Stringer it will be used. Otherwise it
+// will fallback to the result of:
+//
+//   fmt.Sprintf("%v")
+//
+func (ss Float64s) Strings() Strings {
+	l := len(ss)
+
+	// Avoid the allocation.
+	if l == 0 {
+		return nil
+	}
+
+	result := make(Strings, l)
+	for i := 0; i < l; i++ {
+		mightBeString := ss[i]
+		result[i] = fmt.Sprintf("%v", mightBeString)
+	}
+
+	return result
+}
+
+// Sum is the sum of all of the elements.
+func (ss Float64s) Sum() (sum float64) {
+	for _, s := range ss {
+		sum += s
+	}
+
+	return
 }
 
 // Top will return n elements from head of the slice
