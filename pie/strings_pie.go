@@ -495,12 +495,10 @@ func (ss Strings) SequenceUsing(creator func(int) string, params ...int) Strings
 
 	if len(params) > 2 {
 		return seq(params[0], params[1], params[2])
-	} else if len(params) == 2 {
+	} else if len(params) > 1 {
 		return seq(params[0], params[1], 1)
-	} else if len(params) == 1 {
-		return seq(0, params[0], 1)
 	} else {
-		return nil
+		return seq(0, params[0], 1)
 	}
 }
 
